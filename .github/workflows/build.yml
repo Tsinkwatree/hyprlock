@@ -96,21 +96,25 @@ jobs:
 
       - name: Bundle binary with shared libs
         run: |
+          # Debug: find the built binary
+          echo "--- Looking for hyprlock binary ---"
+          find ./build -name 'hyprlock' -type f 2>/dev/null
+          ls -lh ./build/hyprlock 2>/dev/null || echo "NOT FOUND at ./build/hyprlock"
+
           mkdir -p ./release/libs
 
-          # Copy binary
-          cp ./build/hyprlock ./release/hyprlock
+          # Copy binary (fail loudly if missing)
+          cp -v ./build/hyprlock ./release/hyprlock
 
           # Copy all .so files from our custom prefix
-          cp -L /opt/hyprlibs/lib/x86_64-linux-gnu/lib*.so* ./release/libs/ 2>/dev/null || true
-          cp -L /opt/hyprlibs/lib/lib*.so* ./release/libs/ 2>/dev/null || true
+          cp -v -L /opt/hyprlibs/lib/x86_64-linux-gnu/lib*.so* ./release/libs/ 2>/dev/null || true
+          cp -v -L /opt/hyprlibs/lib/lib*.so* ./release/libs/ 2>/dev/null || true
 
           # Also grab any non-system libs that hyprlock still needs
-          # (e.g. libs that came from apt but live outside the usual path)
           ldd ./build/hyprlock | awk '/=>/ {print $3}' | while read lib; do
             case "$lib" in
-              /lib/*|/usr/lib/*|"") ;;  # skip system libs
-              *) cp -L "$lib" ./release/libs/ 2>/dev/null ;;
+              /lib/*|/usr/lib/*|"") ;;
+              *) cp -v -L "$lib" ./release/libs/ 2>/dev/null ;;
             esac
           done
 
@@ -120,10 +124,10 @@ jobs:
           # Set RPATH
           patchelf --set-rpath '$ORIGIN/libs' ./release/hyprlock
 
-          # Debug: show what we bundled
+          # Debug
           echo "--- Bundled libs ---"
           ls -lh ./release/libs/
-          echo "--- ldd check (should show no 'not found') ---"
+          echo "--- ldd check ---"
           ldd ./release/hyprlock
 
       - name: Upload binary
