@@ -119,7 +119,7 @@ jobs:
           done
 
           # Deduplicate
-          cd ./release/libs && ls -1 | sort | uniq -d | xargs -r rm -f
+          (cd ./release/libs && ls -1 | sort | uniq -d | xargs -r rm -f)
 
           # Set RPATH
           patchelf --set-rpath '$ORIGIN/libs' ./release/hyprlock
