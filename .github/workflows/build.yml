@@ -32,12 +32,14 @@ jobs:
 
       # ---- Hypr ecosystem libs (from source) ----
 
+      # Install all Hypr ecosystem libs to a custom prefix so we can
+      # precisely identify which .so files to bundle.
       - name: Build hyprutils
         run: |
           git clone --depth=1 https://github.com/hyprwm/hyprutils.git /tmp/hyprutils
           cmake -S /tmp/hyprutils -B /tmp/hyprutils/build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr
+            -DCMAKE_INSTALL_PREFIX=/opt/hyprlibs
           cmake --build /tmp/hyprutils/build -j$(nproc)
           sudo cmake --install /tmp/hyprutils/build
 
@@ -46,7 +48,7 @@ jobs:
           git clone --depth=1 https://github.com/hyprwm/hyprlang.git /tmp/hyprlang
           cmake -S /tmp/hyprlang -B /tmp/hyprlang/build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr
+            -DCMAKE_INSTALL_PREFIX=/opt/hyprlibs
           cmake --build /tmp/hyprlang/build -j$(nproc)
           sudo cmake --install /tmp/hyprlang/build
 
@@ -55,7 +57,7 @@ jobs:
           git clone --depth=1 https://github.com/hyprwm/hyprwayland-scanner.git /tmp/hyprwayland-scanner
           cmake -S /tmp/hyprwayland-scanner -B /tmp/hyprwayland-scanner/build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr
+            -DCMAKE_INSTALL_PREFIX=/opt/hyprlibs
           cmake --build /tmp/hyprwayland-scanner/build -j$(nproc)
           sudo cmake --install /tmp/hyprwayland-scanner/build
 
@@ -64,7 +66,7 @@ jobs:
           git clone --depth=1 --branch v2.0.0 https://github.com/Kistler-group/sdbus-cpp.git /tmp/sdbus-cpp
           cmake -S /tmp/sdbus-cpp -B /tmp/sdbus-cpp/build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_INSTALL_PREFIX=/opt/hyprlibs \
             -DBUILD_CODE_GEN=OFF
           cmake --build /tmp/sdbus-cpp/build -j$(nproc)
           sudo cmake --install /tmp/sdbus-cpp/build
@@ -74,7 +76,7 @@ jobs:
           git clone --depth=1 https://github.com/hyprwm/hyprgraphics.git /tmp/hyprgraphics
           cmake -S /tmp/hyprgraphics -B /tmp/hyprgraphics/build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr
+            -DCMAKE_INSTALL_PREFIX=/opt/hyprlibs
           cmake --build /tmp/hyprgraphics/build -j$(nproc)
           sudo cmake --install /tmp/hyprgraphics/build
 
@@ -82,9 +84,10 @@ jobs:
 
       - name: Build hyprlock
         run: |
+          export PKG_CONFIG_PATH="/opt/hyprlibs/lib/x86_64-linux-gnu/pkgconfig:/opt/hyprlibs/lib/pkgconfig:$PKG_CONFIG_PATH"
           cmake --no-warn-unused-cli \
             -DCMAKE_BUILD_TYPE:STRING=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_INSTALL_PREFIX=/opt/hyprlibs \
             -S . -B ./build
           cmake --build ./build --config Release --target hyprlock -j$(nproc)
 
@@ -95,20 +98,29 @@ jobs:
           # Copy binary
           cp ./build/hyprlock ./release/hyprlock
 
-          # Find all non-system .so dependencies
-          # System libs live in /lib, /usr/lib/x86_64-linux-gnu; we skip those
+          # Copy all .so files from our custom prefix
+          cp -L /opt/hyprlibs/lib/x86_64-linux-gnu/lib*.so* ./release/libs/ 2>/dev/null || true
+          cp -L /opt/hyprlibs/lib/lib*.so* ./release/libs/ 2>/dev/null || true
+
+          # Also grab any non-system libs that hyprlock still needs
+          # (e.g. libs that came from apt but live outside the usual path)
           ldd ./build/hyprlock | awk '/=>/ {print $3}' | while read lib; do
             case "$lib" in
-              /lib/*|/usr/lib/x86_64-linux-gnu/*) ;;  # skip system libs
-              *) cp -L "$lib" ./release/libs/ ;;
+              /lib/*|/usr/lib/*|"") ;;  # skip system libs
+              *) cp -L "$lib" ./release/libs/ 2>/dev/null ;;
             esac
           done
 
-          # Set RPATH so binary finds libs next to it
+          # Deduplicate
+          cd ./release/libs && ls -1 | sort | uniq -d | xargs -r rm -f
+
+          # Set RPATH
           patchelf --set-rpath '$ORIGIN/libs' ./release/hyprlock
 
-          # Verify
-          echo "--- ldd check ---"
+          # Debug: show what we bundled
+          echo "--- Bundled libs ---"
+          ls -lh ./release/libs/
+          echo "--- ldd check (should show no 'not found') ---"
           ldd ./release/hyprlock
 
       - name: Upload binary
