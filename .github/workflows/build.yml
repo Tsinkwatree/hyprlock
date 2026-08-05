@@ -86,6 +86,7 @@ jobs:
 
       - name: Build hyprlock
         run: |
+          export PATH="/opt/hyprlibs/bin:$PATH"
           export PKG_CONFIG_PATH="/opt/hyprlibs/lib/x86_64-linux-gnu/pkgconfig:/opt/hyprlibs/lib/pkgconfig:$PKG_CONFIG_PATH"
           cmake --no-warn-unused-cli \
             -DCMAKE_BUILD_TYPE:STRING=Release \
