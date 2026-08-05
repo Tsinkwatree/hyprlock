@@ -19,7 +19,7 @@ jobs:
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get update
           sudo apt-get install -y \
-            cmake pkg-config g++-14 \
+            cmake pkg-config g++-14 patchelf \
             libpixman-1-dev libpugixml-dev \
             libdrm-dev libcairo2-dev libpango1.0-dev \
             libjpeg-dev libwebp-dev libmagic-dev libpng-dev librsvg2-dev \
@@ -88,9 +88,32 @@ jobs:
             -S . -B ./build
           cmake --build ./build --config Release --target hyprlock -j$(nproc)
 
+      - name: Bundle binary with shared libs
+        run: |
+          mkdir -p ./release/libs
+
+          # Copy binary
+          cp ./build/hyprlock ./release/hyprlock
+
+          # Find all non-system .so dependencies
+          # System libs live in /lib, /usr/lib/x86_64-linux-gnu; we skip those
+          ldd ./build/hyprlock | awk '/=>/ {print $3}' | while read lib; do
+            case "$lib" in
+              /lib/*|/usr/lib/x86_64-linux-gnu/*) ;;  # skip system libs
+              *) cp -L "$lib" ./release/libs/ ;;
+            esac
+          done
+
+          # Set RPATH so binary finds libs next to it
+          patchelf --set-rpath '$ORIGIN/libs' ./release/hyprlock
+
+          # Verify
+          echo "--- ldd check ---"
+          ldd ./release/hyprlock
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: hyprlock-linux-x86_64
-          path: ./build/hyprlock
+          path: ./release/
           if-no-files-found: error
