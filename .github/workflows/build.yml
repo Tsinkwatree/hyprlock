@@ -110,10 +110,13 @@ jobs:
           cp -v -L /opt/hyprlibs/lib/x86_64-linux-gnu/lib*.so* ./release/libs/ 2>/dev/null || true
           cp -v -L /opt/hyprlibs/lib/lib*.so* ./release/libs/ 2>/dev/null || true
 
-          # Also grab any non-system libs that hyprlock still needs
+          # Also grab any non-system libs that hyprlock needs.
+          # Only skip truly universal libs (glibc, libstdc++, etc.)
           ldd ./build/hyprlock | awk '/=>/ {print $3}' | while read lib; do
-            case "$lib" in
-              /lib/*|/usr/lib/*|"") ;;
+            [ -z "$lib" ] && continue
+            base=$(basename "$lib")
+            case "$base" in
+              libc.so*|libm.so*|libpthread.so*|libdl.so*|librt.so*|ld-linux*.so*|libstdc++.so*|libgcc_s.so*|libresolv.so*|libnss_*) ;;
               *) cp -v -L "$lib" ./release/libs/ 2>/dev/null ;;
             esac
           done
