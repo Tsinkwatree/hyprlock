@@ -45,6 +45,7 @@ jobs:
 
       - name: Build hyprlang
         run: |
+          export PKG_CONFIG_PATH="/opt/hyprlibs/lib/x86_64-linux-gnu/pkgconfig:/opt/hyprlibs/lib/pkgconfig:$PKG_CONFIG_PATH"
           git clone --depth=1 https://github.com/hyprwm/hyprlang.git /tmp/hyprlang
           cmake -S /tmp/hyprlang -B /tmp/hyprlang/build \
             -DCMAKE_BUILD_TYPE=Release \
@@ -73,6 +74,7 @@ jobs:
 
       - name: Build hyprgraphics
         run: |
+          export PKG_CONFIG_PATH="/opt/hyprlibs/lib/x86_64-linux-gnu/pkgconfig:/opt/hyprlibs/lib/pkgconfig:$PKG_CONFIG_PATH"
           git clone --depth=1 https://github.com/hyprwm/hyprgraphics.git /tmp/hyprgraphics
           cmake -S /tmp/hyprgraphics -B /tmp/hyprgraphics/build \
             -DCMAKE_BUILD_TYPE=Release \
