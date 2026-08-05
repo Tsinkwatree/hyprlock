@@ -1,0 +1,93 @@
+name: Build hyprlock
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake pkg-config g++ \
+            libpixman-1-dev libpugixml-dev \
+            libdrm-dev libcairo2-dev libpango1.0-dev \
+            libjpeg-dev libwebp-dev libmagic-dev libpng-dev librsvg2-dev \
+            libwayland-dev wayland-protocols \
+            libxkbcommon-dev libpam0g-dev \
+            libegl1-mesa-dev libgles2-mesa-dev libgbm-dev \
+            libsystemd-dev
+
+      # ---- Hypr ecosystem libs (from source) ----
+
+      - name: Build hyprutils
+        run: |
+          git clone --depth=1 https://github.com/hyprwm/hyprutils.git /tmp/hyprutils
+          cmake -S /tmp/hyprutils -B /tmp/hyprutils/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build /tmp/hyprutils/build -j$(nproc)
+          sudo cmake --install /tmp/hyprutils/build
+
+      - name: Build hyprlang
+        run: |
+          git clone --depth=1 https://github.com/hyprwm/hyprlang.git /tmp/hyprlang
+          cmake -S /tmp/hyprlang -B /tmp/hyprlang/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build /tmp/hyprlang/build -j$(nproc)
+          sudo cmake --install /tmp/hyprlang/build
+
+      - name: Build hyprwayland-scanner
+        run: |
+          git clone --depth=1 https://github.com/hyprwm/hyprwayland-scanner.git /tmp/hyprwayland-scanner
+          cmake -S /tmp/hyprwayland-scanner -B /tmp/hyprwayland-scanner/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build /tmp/hyprwayland-scanner/build -j$(nproc)
+          sudo cmake --install /tmp/hyprwayland-scanner/build
+
+      - name: Build sdbus-cpp
+        run: |
+          git clone --depth=1 --branch v2.0.0 https://github.com/Kistler-group/sdbus-cpp.git /tmp/sdbus-cpp
+          cmake -S /tmp/sdbus-cpp -B /tmp/sdbus-cpp/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_CODE_GEN=OFF
+          cmake --build /tmp/sdbus-cpp/build -j$(nproc)
+          sudo cmake --install /tmp/sdbus-cpp/build
+
+      - name: Build hyprgraphics
+        run: |
+          git clone --depth=1 https://github.com/hyprwm/hyprgraphics.git /tmp/hyprgraphics
+          cmake -S /tmp/hyprgraphics -B /tmp/hyprgraphics/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build /tmp/hyprgraphics/build -j$(nproc)
+          sudo cmake --install /tmp/hyprgraphics/build
+
+      # ---- Build hyprlock ----
+
+      - name: Build hyprlock
+        run: |
+          cmake --no-warn-unused-cli \
+            -DCMAKE_BUILD_TYPE:STRING=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -S . -B ./build
+          cmake --build ./build --config Release --target hyprlock -j$(nproc)
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyprlock-linux-x86_64
+          path: ./build/hyprlock
+          if-no-files-found: error
